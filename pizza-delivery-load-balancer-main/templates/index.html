@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pizza Delivery Load Balancer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container {
+            width: 60%;
+            margin: 40px auto;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pizza Delivery Load Balancer</h1>
+
+    <a href="{{ url_for('add_driver_page') }}">Add a New Driver</a>
+
+    <div class="driver-table">
+        {% if drivers %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Driver Name</th>
+                    <th>Total Deliveries</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="driver-table-body">
+                {% for driver in drivers %}
+                <tr>
+                    <td>{{ driver.name }}</td>
+                    <td>{{ driver.deliveries }}</td>
+                    <td>{{ 'Active' if driver.active else 'Inactive' }}</td>
+                    <td>
+                        <form action="/toggle_driver/{{ loop.index0 }}" method="post" style="display: inline;">
+                            <button type="submit">{{ 'Deactivate' if driver.active else 'Activate' }}</button>
+                        </form>
+                        <form action="/complete_delivery/{{ loop.index0 }}" method="post" style="display: inline;">
+                            <button type="submit">Complete Delivery</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No drivers available.</p>
+        {% endif %}
+    </div>
+
+    <div class="chart-container">
+        <h2>Live Workload Graph</h2>
+        <canvas id="workloadChart" width="600" height="400"></canvas>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('workloadChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Deliveries',
+                    data: [],
+                    backgroundColor: 'yellow'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        precision: 0
+                    }
+                }
+            }
+        });
+
+        async function updateChartAndTable() {
+            try {
+                const response = await fetch('/data');
+                const data = await response.json();
+
+                // Update Chart
+                chart.data.labels = data.names;
+                chart.data.datasets[0].data = data.deliveries;
+                chart.update();
+
+                // Update table
+                const tableBody = document.getElementById('driver-table-body');
+                tableBody.innerHTML = '';
+                data.names.forEach((name, index) => {
+                    const deliveries = data.deliveries[index];
+                    const isActive = data.active[index];
+                    const row = `
+                        <tr>
+                            <td>${name}</td>
+                            <td>${deliveries}</td>
+                            <td>${isActive ? 'Active' : 'Inactive'}</td>
+                            <td>
+                                <form action="/toggle_driver/${index}" method="post" style="display: inline;">
+                                    <button type="submit">${isActive ? 'Deactivate' : 'Activate'}</button>
+                                </form>
+                                <form action="/complete_delivery/${index}" method="post" style="display: inline;">
+                                    <button type="submit">Complete Delivery</button>
+                                </form>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error('Error updating chart and table:', error);
+            }
+        }
+
+        updateChartAndTable();
+        setInterval(updateChartAndTable, 3000);
+    </script>
+</body>
+</html>
